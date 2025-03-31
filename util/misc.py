@@ -18,7 +18,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
-from torch._six import inf
+# 将这一行：
+# from torch._six import inf
+
+# 替换为：
+inf = float('inf')
 
 
 class SmoothedValue(object):
