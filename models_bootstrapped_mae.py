@@ -111,6 +111,7 @@ class FeatureMAE(nn.Module):
         return x
         
     def forward_loss(self, target_features, pred_features, mask):
+        #print("pred_features.shape, target_features.shape", pred_features.shape, target_features.shape)
         loss = (pred_features - target_features) ** 2
         loss = loss.mean(dim=-1)
         loss = (loss * mask).sum() / mask.sum()

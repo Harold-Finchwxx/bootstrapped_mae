@@ -32,7 +32,7 @@ python main_bootstrapped_pretrain.py \
     --mask_ratio 0.75 \
     --accum_iter 1 \
     --warmup_epochs 20 \
-    --blr 1e-3 \
+    --blr 5e-4 \
     --weight_decay 0.05 \
     --output_dir ./output_dir/bootstrapped_mae/mae_1 \
     --log_dir ./output_dir/bootstrapped_mae/mae_1 \

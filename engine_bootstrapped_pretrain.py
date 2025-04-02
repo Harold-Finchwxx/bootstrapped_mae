@@ -9,8 +9,7 @@ import util.misc as misc
 import util.lr_sched as lr_sched
 
 def train_one_epoch(model: torch.nn.Module,
-                    data_loader: torch.utils.data.DataLoader,
-                    optimizer: torch.optim.Optimizer,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler,
                     max_norm: float = None,
                     log_writer=None,
@@ -36,8 +35,15 @@ def train_one_epoch(model: torch.nn.Module,
 
         samples = batch.to(device, non_blocking=True)
 
+        # 获取当前batch对应的特征
+        current_target_features = None
+        if target_features is not None:
+            start_idx = data_iter_step * args.batch_size
+            end_idx = start_idx + args.batch_size
+            current_target_features = target_features[start_idx:end_idx].to(device)
+
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio, target_features=target_features)
+            loss, _, _ = model(samples, mask_ratio=args.mask_ratio, target_features=current_target_features)
 
         loss_value = loss.item()
 
@@ -45,7 +51,6 @@ def train_one_epoch(model: torch.nn.Module,
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
 
-        loss /= accum_iter
         loss_scaler(loss, optimizer, clip_grad=max_norm,
                     parameters=model.parameters(), create_graph=False,
                     update_grad=(data_iter_step + 1) % accum_iter == 0)
@@ -53,6 +58,7 @@ def train_one_epoch(model: torch.nn.Module,
             optimizer.zero_grad()
 
         torch.cuda.synchronize()
+
         metric_logger.update(loss=loss_value)
         min_lr = 10.
         max_lr = 0.
@@ -63,13 +69,10 @@ def train_one_epoch(model: torch.nn.Module,
         metric_logger.update(lr=max_lr)
 
         loss_value_reduce = misc.all_reduce_mean(loss_value)
-        if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
-            """ We use epoch_1000x as the x-axis in tensorboard.
-            This calibrates different curves when batch size changes.
-            """
-            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('loss', loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('lr', max_lr, epoch_1000x)
+        if log_writer is not None:
+            """ We use epoch_1000x for the logs to keep the ps the same as the training script """
+            log_writer.add_scalar('loss', loss_value_reduce, epoch * 1000 + data_iter_step)
+            log_writer.add_scalar('lr', max_lr, epoch * 1000 + data_iter_step)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

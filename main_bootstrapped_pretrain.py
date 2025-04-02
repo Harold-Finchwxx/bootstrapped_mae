@@ -152,7 +152,15 @@ def main(args):
     if args.current_mae_idx > 0 and args.prev_mae_path:
         prev_model = models_mae.__dict__['mae_vit_tiny_patch4']()
         checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
-        prev_model.load_state_dict(checkpoint['model'])
+        # 处理状态字典键名
+        state_dict = checkpoint['model']
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('model.'):
+                new_state_dict[k[6:]] = v  # 移除'model.'前缀
+            else:
+                new_state_dict[k] = v
+        prev_model.load_state_dict(new_state_dict)
         prev_model.to(device)
         prev_model.eval()
     
@@ -195,21 +203,21 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs_per_mae):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
-            
-        # 获取前一个MAE的特征（如果不是第一个MAE）
+        
+        # 如果不是第一个MAE，获取前一个模型的特征
         target_features = None
-        if prev_model is not None:
+        if args.current_mae_idx > 0 and prev_model is not None:
+            print(f"Extracting features from previous MAE model...")
+            all_features = []
             with torch.no_grad():
-                all_features = []
-                for data_iter_step, (batch, _) in enumerate(data_loader_train):
-                    batch = batch.to(device)
-                    features, _, _ = prev_model.forward_encoder(batch, args.mask_ratio)
+                for batch in data_loader_train:
+                    batch = batch[0].to(device)
+                    features, _, _ = prev_model.forward_encoder(batch, mask_ratio=0)
                     features = features[:, 1:, :]  # 移除CLS token
                     all_features.append(features)
-                    if data_iter_step >= len(data_loader_train) - 1:  # 获取整个epoch的特征
-                        break
-                target_features = torch.cat(all_features, dim=0)  # 合并所有batch的特征
-
+            target_features = torch.cat(all_features, dim=0)
+            print(f"Extracted features shape: {target_features.shape}")
+        
         train_stats = train_one_epoch(
             model, data_loader_train,
             optimizer, device, epoch, loss_scaler,
