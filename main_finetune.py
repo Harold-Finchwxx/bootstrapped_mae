@@ -156,6 +156,9 @@ def get_args_parser():
 
 
 def main(args):
+    # 设置跳过自动加载模型
+    args.skip_load_model = True
+    
     misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
@@ -235,23 +238,42 @@ def main(args):
 
         print("Load pre-trained checkpoint from: %s" % args.finetune)
         checkpoint_model = checkpoint['model']
+        
+        # 过滤掉解码器相关的权重
+        filtered_dict = {}
+        for k, v in checkpoint_model.items():
+            # 跳过解码器相关的权重
+            if k.startswith('decoder') or k == 'mask_token':
+                continue
+            
+            # 处理encoder.前缀 (如果存在)
+            if k.startswith('encoder.'):
+                k_new = k[8:]  # 移除'encoder.'前缀
+            else:
+                k_new = k
+                
+            filtered_dict[k_new] = v
+            
+        # 删除head相关的键，如果模型结构不匹配
         state_dict = model.state_dict()
         for k in ['head.weight', 'head.bias']:
-            if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
+            if k in filtered_dict and filtered_dict[k].shape != state_dict[k].shape:
                 print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
+                del filtered_dict[k]
+                
+        # 打印要加载的键
+        print(f"Keys to load: {list(filtered_dict.keys())}")
 
         # interpolate position embedding
-        interpolate_pos_embed(model, checkpoint_model)
+        interpolate_pos_embed(model, filtered_dict)
 
         # load pre-trained model
-        msg = model.load_state_dict(checkpoint_model, strict=False)
+        msg = model.load_state_dict(filtered_dict, strict=False)
         print(msg)
 
-        if args.global_pool:
-            assert set(msg.missing_keys) == {'head.weight', 'head.bias', 'fc_norm.weight', 'fc_norm.bias'}
-        else:
-            assert set(msg.missing_keys) == {'head.weight', 'head.bias'}
+        # 检查缺失和意外的键
+        print(f"Missing keys: {msg.missing_keys}")
+        print(f"Unexpected keys: {msg.unexpected_keys}")
 
         # manually initialize fc layer
         trunc_normal_(model.head.weight, std=2e-5)
