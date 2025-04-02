@@ -239,6 +239,23 @@ def main(args):
         print("Load pre-trained checkpoint from: %s" % args.finetune)
         checkpoint_model = checkpoint['model']
         
+        # 检查模型是否包含bootstrapped_mae结构
+        if 'model.model.pos_embed' in checkpoint_model:
+            print("Detected bootstrapped_mae model structure")
+            # 提取bootstrapped mae中嵌套的模型权重
+            filtered_model = {}
+            for k, v in checkpoint_model.items():
+                if k.startswith('model.model.'):
+                    # 修改键名，移除model.model.前缀
+                    new_k = k[12:]  # 'model.model.'长度为12
+                    filtered_model[new_k] = v
+                elif k.startswith('model.'):
+                    # 修改键名，移除model.前缀
+                    new_k = k[6:]  # 'model.'长度为6
+                    filtered_model[new_k] = v
+            checkpoint_model = filtered_model
+            print(f"Extracted nested model with keys: {list(checkpoint_model.keys())[:10]}...")
+        
         # 过滤掉解码器相关的权重
         filtered_dict = {}
         for k, v in checkpoint_model.items():
