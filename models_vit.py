@@ -22,20 +22,18 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
     """
     def __init__(self, global_pool=False, **kwargs):
         super(VisionTransformer, self).__init__(**kwargs)
-
         self.global_pool = global_pool
         if self.global_pool:
             norm_layer = kwargs['norm_layer']
             embed_dim = kwargs['embed_dim']
             self.fc_norm = norm_layer(embed_dim)
-
             del self.norm  # remove the original norm
 
     def forward_features(self, x):
         B = x.shape[0]
         x = self.patch_embed(x)
 
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
@@ -71,4 +69,18 @@ def vit_huge_patch14(**kwargs):
     model = VisionTransformer(
         patch_size=14, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+def vit_tiny_patch4(**kwargs):
+    model = VisionTransformer(
+        patch_size=4, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), img_size=32, **kwargs)
+    return model
+
+
+def mae_vit_tiny_patch4(**kwargs):
+    model = VisionTransformer(
+        patch_size=4, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), img_size=32, **kwargs)
     return model

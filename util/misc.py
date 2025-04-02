@@ -317,14 +317,32 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
 
 
 def load_model(args, model_without_ddp, optimizer, loss_scaler):
+    # 如果是main_linprobe.py调用，返回不加载
+    if hasattr(args, 'skip_load_model') and args.skip_load_model:
+        print("Skipping automatic model loading")
+        return
+        
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        print("Resume checkpoint %s" % args.resume)
+        
+        # 处理MAE预训练模型到ViT模型的转换
+        checkpoint_model = checkpoint['model']
+        
+        # 只加载编码器部分，排除解码器和mask_token
+        encoder_dict = {}
+        for k, v in checkpoint_model.items():
+            if not k.startswith('decoder') and k != 'mask_token':
+                encoder_dict[k] = v
+        
+        # 加载权重，允许模型结构不完全匹配
+        msg = model_without_ddp.load_state_dict(encoder_dict, strict=False)
+        print(f"Resume checkpoint {args.resume}")
+        print(f"Loaded model weights with msg: {msg}")
+        
         if 'optimizer' in checkpoint and 'epoch' in checkpoint and not (hasattr(args, 'eval') and args.eval):
             optimizer.load_state_dict(checkpoint['optimizer'])
             args.start_epoch = checkpoint['epoch'] + 1

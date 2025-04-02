@@ -114,6 +114,9 @@ def get_args_parser():
 
 
 def main(args):
+    # 设置跳过自动加载模型
+    args.skip_load_model = True
+    
     misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
@@ -130,17 +133,16 @@ def main(args):
 
     # linear probe: weak augmentation
     transform_train = transforms.Compose([
-            RandomResizedCrop(224, interpolation=3),
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
     transform_val = transforms.Compose([
-            transforms.Resize(256, interpolation=3),
-            transforms.CenterCrop(224),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
-    dataset_val = datasets.ImageFolder(os.path.join(args.data_path, 'val'), transform=transform_val)
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    
+    dataset_train = datasets.CIFAR10(args.data_path, train=True, download=True, transform=transform_train)
+    dataset_val = datasets.CIFAR10(args.data_path, train=False, download=True, transform=transform_val)
     print(dataset_train)
     print(dataset_val)
 
@@ -257,7 +259,53 @@ def main(args):
 
     print("criterion = %s" % str(criterion))
 
-    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+    # 加载预训练权重
+    if args.resume:
+        checkpoint = torch.load(args.resume, map_location='cpu')
+        print("Load pre-trained checkpoint from: %s" % args.resume)
+        checkpoint_model = checkpoint['model']
+        
+        # 只保留编码器部分的权重
+        encoder_dict = {}
+        for k, v in checkpoint_model.items():
+            # 跳过解码器和mask_token相关的权重
+            if k.startswith('decoder') or k == 'mask_token':
+                continue
+                
+            # 处理encoder.前缀 (如果存在)
+            if k.startswith('encoder.'):
+                k_new = k[8:]  # 移除'encoder.'前缀
+            else:
+                k_new = k
+                
+            # 处理规范化层
+            if k == 'norm.weight':
+                if hasattr(model_without_ddp, 'norm'):
+                    k_new = 'norm.weight'
+                elif hasattr(model_without_ddp, 'fc_norm') and args.global_pool:
+                    k_new = 'fc_norm.weight'
+            elif k == 'norm.bias':
+                if hasattr(model_without_ddp, 'norm'):
+                    k_new = 'norm.bias'
+                elif hasattr(model_without_ddp, 'fc_norm') and args.global_pool:
+                    k_new = 'fc_norm.bias'
+            
+            # 存储适当的键和值
+            encoder_dict[k_new] = v
+            
+        # 打印预处理后的键
+        print("Processed keys for encoder:", list(encoder_dict.keys()))
+        
+        # 加载编码器权重
+        msg = model_without_ddp.load_state_dict(encoder_dict, strict=False)
+        print(f"Loading pre-trained weights: {msg}")
+        
+        # 初始化分类头
+        trunc_normal_(model_without_ddp.head[1].weight, std=0.01)
+        
+        # 打印加载后的信息
+        print(f"Missing keys: {msg.missing_keys}")
+        print(f"Unexpected keys: {msg.unexpected_keys}")
 
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device)
