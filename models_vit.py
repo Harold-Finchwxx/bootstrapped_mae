@@ -84,3 +84,10 @@ def mae_vit_tiny_patch4(**kwargs):
         patch_size=4, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6), img_size=32, **kwargs)
     return model
+
+
+def ema_mae_vit_tiny_patch4(**kwargs):
+    model = VisionTransformer(
+        patch_size=4, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), img_size=32, **kwargs)
+    return model
