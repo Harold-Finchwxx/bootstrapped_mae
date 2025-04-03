@@ -12,10 +12,10 @@ python main_linprobe.py \
     --epochs 100 \
     --accum_iter 1 \
     --blr 0.01 \
-    --weight_decay 0.0 \
+    --weight_decay 0.05 \
     --output_dir ./output_dir/ema_mae_linear/adamw/ed0.999_lr1e-3_wd0.05_mask0.75 \
     --log_dir ./output_dir/ema_mae_linear/adamw/ed0.999_lr1e-3_wd0.05_mask0.75 \
-    --resume ./output_dir/ema_mae/adamw/lr1e-3_wd0.05_mask0.75/checkpoint-199.pth \
+    --resume ./output_dir/ema_mae/adamw/ed0.999_lr1e-3_wd0.05_mask0.75/checkpoint-199.pth \
     --data_path ./data/cifar10 \
     --nb_classes 10 \
     --global_pool \
