@@ -10,7 +10,7 @@ mkdir -p output_dir/bootstrapped_mae/3_mae
 python main_bootstrapped_pretrain.py \
     --batch_size 256 \
     --model bootstrapped_mae_tiny_patch4_dec96d4b \
-    --num_mae 2 \
+    --num_mae 3 \
     --current_mae_idx 0 \
     --epochs_per_mae 68 \
     --mask_ratio 0.75 \
@@ -26,7 +26,7 @@ python main_bootstrapped_pretrain.py \
 python main_bootstrapped_pretrain.py \
     --batch_size 256 \
     --model bootstrapped_mae_tiny_patch4_dec96d4b \
-    --num_mae 2 \
+    --num_mae 3 \
     --current_mae_idx 1 \
     --epochs_per_mae 66 \
     --mask_ratio 0.75 \
@@ -43,7 +43,7 @@ python main_bootstrapped_pretrain.py \
 python main_bootstrapped_pretrain.py \
     --batch_size 256 \
     --model bootstrapped_mae_tiny_patch4_dec96d4b \
-    --num_mae 2 \
+    --num_mae 3 \
     --current_mae_idx 2 \
     --epochs_per_mae 66 \
     --mask_ratio 0.75 \
