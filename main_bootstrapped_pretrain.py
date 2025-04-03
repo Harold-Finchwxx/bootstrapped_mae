@@ -149,20 +149,38 @@ def main(args):
     
     # 加载前一个MAE模型（如果不是第一个MAE）
     prev_model = None
+    # 在加载前一个MAE模型的部分（大约在第150行左右）
     if args.current_mae_idx > 0 and args.prev_mae_path:
-        prev_model = models_mae.__dict__['mae_vit_tiny_patch4']()
-        checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
-        # 处理状态字典键名
-        state_dict = checkpoint['model']
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('model.'):
-                new_state_dict[k[6:]] = v  # 移除'model.'前缀
-            else:
-                new_state_dict[k] = v
-        prev_model.load_state_dict(new_state_dict)
+        if args.current_mae_idx == 1:
+            # 如果是第二个MAE（idx=1），加载原始MAE模型
+            prev_model = models_mae.__dict__['mae_vit_tiny_patch4']()
+            checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+            # 处理状态字典键名
+            state_dict = checkpoint['model']
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith('model.'):
+                    new_state_dict[k[6:]] = v  # 移除'model.'前缀
+                else:
+                    new_state_dict[k] = v
+            prev_model.load_state_dict(new_state_dict)
+        else:
+            # 如果是第三个或更高级的MAE（idx>1），加载bootstrapped MAE模型
+            prev_model = models_bootstrapped_mae.__dict__['bootstrapped_mae_tiny_patch4_dec96d4b'](
+                num_mae=args.num_mae,
+                current_mae_idx=args.current_mae_idx - 1
+            )
+            checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+            # 加载状态字典
+            state_dict = checkpoint['model']
+            prev_model.load_state_dict(state_dict)
+        
         prev_model.to(device)
         prev_model.eval()
+
+        # 如果是第三个或更高级的MAE，我们需要获取内部的FeatureMAE模型
+        if args.current_mae_idx > 1:
+            prev_model = prev_model.model  # 获取内部的FeatureMAE模型
     
     # 定义当前模型
     model = models_bootstrapped_mae.__dict__[args.model](
