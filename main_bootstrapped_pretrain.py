@@ -149,26 +149,75 @@ def main(args):
     
     # 加载前一个MAE模型（如果不是第一个MAE）
     prev_model = None
+    # 在加载前一个MAE模型的部分（大约在第150行左右）
     if args.current_mae_idx > 0 and args.prev_mae_path:
-        prev_model = models_mae.__dict__['mae_vit_tiny_patch4']()
-        checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
-        # 处理状态字典键名
-        state_dict = checkpoint['model']
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('model.'):
-                new_state_dict[k[6:]] = v  # 移除'model.'前缀
-            else:
-                new_state_dict[k] = v
-        prev_model.load_state_dict(new_state_dict)
+        if args.current_mae_idx == 1:
+            # 如果是第二个MAE（idx=1），加载原始MAE模型
+            prev_model = models_mae.__dict__['mae_vit_tiny_patch4']()
+            checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+            # 处理状态字典键名
+            state_dict = checkpoint['model']
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith('model.'):
+                    new_state_dict[k[6:]] = v  # 移除'model.'前缀
+                else:
+                    new_state_dict[k] = v
+            prev_model.load_state_dict(new_state_dict)
+        else:
+            # 如果是第三个或更高级的MAE（idx>1），加载bootstrapped MAE模型
+            prev_model = models_bootstrapped_mae.__dict__['bootstrapped_mae_tiny_patch4_dec96d4b'](
+                num_mae=args.num_mae,
+                current_mae_idx=args.current_mae_idx - 1
+            )
+            checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+            # 加载状态字典
+            state_dict = checkpoint['model']
+            prev_model.load_state_dict(state_dict)
+        
         prev_model.to(device)
         prev_model.eval()
+
+        # 如果是第三个或更高级的MAE，我们需要获取内部的FeatureMAE模型
+        if args.current_mae_idx > 1:
+            prev_model = prev_model.model  # 获取内部的FeatureMAE模型
     
     # 定义当前模型
     model = models_bootstrapped_mae.__dict__[args.model](
-        num_mae=args.num_mae,
-        current_mae_idx=args.current_mae_idx
+    num_mae=args.num_mae,
+    current_mae_idx=args.current_mae_idx
     )
+
+    # 添加：如果不是第一个模型，加载前一个模型的权重来初始化
+    if args.current_mae_idx > 0 and args.prev_mae_path:
+        print(f"Initializing current model (idx={args.current_mae_idx}) with weights from previous model...")
+        checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+        state_dict = checkpoint['model']
+        
+        # 获取当前模型的 state_dict
+        current_state_dict = model.state_dict()
+        
+        # 创建新的 state_dict，只复制匹配的层
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            # 对于第一个模型到第二个模型的转换
+            if args.current_mae_idx == 1:
+                # 需要处理键名，因为结构不同
+                if k.startswith('model.'):
+                    k = k[6:]  # 移除 'model.' 前缀
+                # 只复制编码器部分的权重
+                if 'encoder' in k or 'patch_embed' in k or 'blocks' in k or 'norm' in k:
+                    if k in current_state_dict and v.shape == current_state_dict[k].shape:
+                        new_state_dict[k] = v
+            # 对于第二个及以后的模型
+            else:
+                # 直接复制匹配的层
+                if k in current_state_dict and v.shape == current_state_dict[k].shape:
+                    new_state_dict[k] = v
+        
+        # 加载权重
+        msg = model.load_state_dict(new_state_dict, strict=False)
+        print(f"Initialized from previous model with message: {msg}")
 
     model.to(device)
 
