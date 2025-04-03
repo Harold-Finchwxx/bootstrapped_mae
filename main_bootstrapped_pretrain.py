@@ -184,9 +184,40 @@ def main(args):
     
     # 定义当前模型
     model = models_bootstrapped_mae.__dict__[args.model](
-        num_mae=args.num_mae,
-        current_mae_idx=args.current_mae_idx
+    num_mae=args.num_mae,
+    current_mae_idx=args.current_mae_idx
     )
+
+    # 添加：如果不是第一个模型，加载前一个模型的权重来初始化
+    if args.current_mae_idx > 0 and args.prev_mae_path:
+        print(f"Initializing current model (idx={args.current_mae_idx}) with weights from previous model...")
+        checkpoint = torch.load(args.prev_mae_path, map_location='cpu')
+        state_dict = checkpoint['model']
+        
+        # 获取当前模型的 state_dict
+        current_state_dict = model.state_dict()
+        
+        # 创建新的 state_dict，只复制匹配的层
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            # 对于第一个模型到第二个模型的转换
+            if args.current_mae_idx == 1:
+                # 需要处理键名，因为结构不同
+                if k.startswith('model.'):
+                    k = k[6:]  # 移除 'model.' 前缀
+                # 只复制编码器部分的权重
+                if 'encoder' in k or 'patch_embed' in k or 'blocks' in k or 'norm' in k:
+                    if k in current_state_dict and v.shape == current_state_dict[k].shape:
+                        new_state_dict[k] = v
+            # 对于第二个及以后的模型
+            else:
+                # 直接复制匹配的层
+                if k in current_state_dict and v.shape == current_state_dict[k].shape:
+                    new_state_dict[k] = v
+        
+        # 加载权重
+        msg = model.load_state_dict(new_state_dict, strict=False)
+        print(f"Initialized from previous model with message: {msg}")
 
     model.to(device)
 
