@@ -398,7 +398,8 @@ def main(args):
             log_writer=log_writer,
             args=args
         )
-        if args.output_dir:
+        # 只保存最后一次模型（节约磁盘空间）
+        if args.output_dir and epoch == args.epochs - 1:
             misc.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                 loss_scaler=loss_scaler, epoch=epoch)
@@ -432,6 +433,7 @@ def main(args):
 if __name__ == '__main__':
     args = get_args_parser()
     args = args.parse_args()
+    # 只保存最后一次模型（节约磁盘空间）
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
