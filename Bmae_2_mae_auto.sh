@@ -66,7 +66,7 @@ for lr in "${learning_rates[@]}"; do
                 --output_dir ${train_dir}/mae_1 \
                 --log_dir ${train_dir}/mae_1 \
                 --data_path ./data/cifar10 \
-                --prev_mae_path ${train_dir}/mae_0/checkpoint-$((epochs-1)).pth
+                --prev_mae_path ${train_dir}/mae_0/checkpoint-139.pth
             
             # 检查训练是否成功
             if [ $? -ne 0 ]; then
@@ -87,7 +87,7 @@ for lr in "${learning_rates[@]}"; do
                 --global_pool \
                 --output_dir ${linear_dir} \
                 --log_dir ${linear_dir} \
-                --finetune ${train_dir}/mae_1/checkpoint-$((epochs-1)).pth \
+                --finetune ${train_dir}/mae_1/checkpoint-59.pth \
                 --blr 0.01 \
                 --weight_decay 0.05 \
                 --warmup_epochs 10 \
@@ -106,7 +106,7 @@ for lr in "${learning_rates[@]}"; do
                 --nb_classes 10 \
                 --output_dir ${finetune_dir} \
                 --log_dir ${finetune_dir} \
-                --finetune ${train_dir}/mae_1/checkpoint-$((epochs-1)).pth \
+                --finetune ${train_dir}/mae_1/checkpoint-59.pth \
                 --blr 5e-4 \
                 --weight_decay 0.05 \
                 --drop_path 0.1 \
