@@ -107,7 +107,7 @@ for lr in "${learning_rates[@]}"; do
                 --output_dir ${finetune_dir} \
                 --log_dir ${finetune_dir} \
                 --finetune ${train_dir}/mae_1/checkpoint-59.pth \
-                --blr 5e-4 \
+                --blr 1e-3 \
                 --weight_decay 0.05 \
                 --drop_path 0.1 \
                 --warmup_epochs 10 \
