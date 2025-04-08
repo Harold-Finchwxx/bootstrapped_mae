@@ -41,9 +41,9 @@ class EMAMAE(nn.Module):
         
         return loss, pred, mask
 
-def ema_mae_vit_tiny_patch4(**kwargs):
+def ema_mae_vit_tiny_patch4(ema_decay=0.999,**kwargs):
     model = EMAMAE(
         model_name='mae_vit_tiny_patch4',
-        ema_decay=0.999,
+        ema_decay=ema_decay,
         **kwargs)
     return model
